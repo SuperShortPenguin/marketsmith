@@ -1,3 +1,291 @@
-from django.shortcuts import render
+# core/views.py
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
+from django.db import transaction
+from django.views.decorators.http import require_POST
+from django.db.models import Count
+from .models import GameSession, Player, Order, Transaction
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
-# Create your views here.
+import random
+
+
+@login_required
+def home(request):
+    """
+    Home / Lobby.
+    If user is already assigned to a game, force redirect.
+    """
+
+    existing_player = Player.objects.filter(
+        user=request.user,
+        game__is_active=True
+    ).first()
+
+    if existing_player:
+        return redirect('game_interface', game_id=existing_player.game.id)
+
+    existing_player = Player.objects.filter(
+        user=request.user,
+        game__is_active=False
+    ).first()
+
+    if existing_player:
+        return redirect('waiting_room', game_id=existing_player.game.id)
+
+    return render(request, 'lobby/lobby.html', {
+    'assigned': False
+})
+
+
+
+
+# --- HELPER: Math Question Generator ---
+def generate_question(digit):
+    """
+    Generates a question for the specific digit required for this round.
+    """
+    offset = random.randint(1, 20)
+    return {
+        "text": f"What is {digit + offset} - {offset}?",
+        # 'answer' intentionally not sent to frontend
+    }
+
+
+# ============================================================
+# === VIEW: MATCHMAKING ENTRY POINT (CORE LOGIC) ==============
+# ============================================================
+
+@login_required
+@require_POST
+@transaction.atomic
+def matchmaking(request):
+    """
+    MATCHMAKING RULES
+    1. Rejoin unfinished game (waiting or active)
+    2. Else join open waiting game (<6 players)
+    3. Else create new game
+    """
+
+    # 1️⃣ Rejoin unfinished game
+    existing_player = Player.objects.select_for_update().filter(
+        user=request.user,
+        game__is_finished=False
+    ).first()
+
+    if existing_player:
+        game = existing_player.game
+        if game.is_active:
+            return redirect('game_interface', game_id=game.id)
+        return redirect('waiting_room', game_id=game.id)
+
+    # 2️⃣ Find open waiting game with space
+    open_game = (
+        GameSession.objects
+        .select_for_update()
+        .filter(is_active=False, is_finished=False)
+        .annotate(player_count=Count('players'))
+        .filter(player_count__lt=6)
+        .order_by('created_at')
+        .first()
+    )
+
+    # 3️⃣ Create game if none available
+    if not open_game:
+        open_game = GameSession.objects.create(
+            room_code=f"G{GameSession.objects.count() + 1}"
+        )
+
+    # 4️⃣ Prevent duplicate join (safety)
+    if Player.objects.filter(user=request.user, game=open_game).exists():
+        return redirect('waiting_room', game_id=open_game.id)
+
+    # 5️⃣ Assign seat
+    seat_number = open_game.players.count() + 1
+
+    Player.objects.create(
+        user=request.user,
+        game=open_game,
+        seat_number=seat_number,
+        cash=0,
+        asset_count=2
+    )
+
+    # 6️⃣ BROADCAST UPDATED PLAYER COUNT
+    player_count = open_game.players.count()
+
+    async_to_sync(get_channel_layer().group_send)(
+        f"waiting_{open_game.id}",
+        {
+            "type": "player_joined",
+            "player_count": player_count
+        }
+    )
+
+    # 7️⃣ Start game if full
+    if player_count == 6:
+        open_game.initialize_game()
+        open_game.is_active = True
+        open_game.save()
+        return redirect('game_interface', game_id=open_game.id)
+
+    # 8️⃣ Otherwise stay in waiting room
+    return redirect('waiting_room', game_id=open_game.id)
+
+
+
+
+
+# ============================================================
+# === VIEW: WAITING ROOM =====================================
+# ============================================================
+
+@login_required
+def waiting_room(request, game_id):
+    game = get_object_or_404(GameSession, id=game_id)
+    player = get_object_or_404(Player, user=request.user, game=game)
+
+    if game.is_active:
+        return redirect('game_interface', game_id=game.id)
+
+    return render(request, 'lobby/waiting.html', {
+        'game': game,
+        'player': player,
+        'player_count': game.players.count(),
+        'max_players': 6,
+    })
+
+
+
+# ============================================================
+# === VIEW: GAME INTERFACE ===================================
+# ============================================================
+
+@login_required
+def game_interface(request, game_id):
+    game = get_object_or_404(GameSession, id=game_id)
+
+    # ❌ Game not started → waiting room
+    # if not game.is_active:
+    #     return redirect('waiting_room', game_id=game.id)
+
+    # ❌ Game finished → matchmaking
+    if game.is_finished:
+        return redirect('home')
+
+    # ❌ User not part of this game
+    player = Player.objects.filter(user=request.user, game=game).first()
+    if not player:
+        return redirect('home')
+
+    # -------- SAFE TO ENTER GAME --------
+
+    # --- GAME OVER / LIQUIDATION ---
+    if game.current_round > 6:
+
+        # ✅ MARK GAME AS FINISHED (DO THIS ONCE)
+        if not game.is_finished:
+            game.is_finished = True
+            game.is_active = False
+            game.save()
+
+        true_asset_value = sum(game.hidden_array)
+        final_score = player.cash + (player.asset_count * true_asset_value)
+
+        return render(request, 'core/game_over.html', {
+            'game': game,
+            'player': player,
+            'true_asset_value': true_asset_value,
+            'final_score': final_score,
+            'game_over': True
+        })
+
+    # --- ROUND 4 BONUS ---
+    if game.current_round >= 4 and not player.has_received_bonus:
+        player.asset_count += 1
+        player.has_received_bonus = True
+        player.save()
+
+    # --- QUESTION GENERATION ---
+    index = game.current_round - 1
+    question = (
+        generate_question(game.hidden_array[index])
+        if index < len(game.hidden_array)
+        else {"text": "Waiting for game start..."}
+    )
+
+    return render(request, 'core/game.html', {
+        'game': game,
+        'player': player,
+        'question': question,
+        'round_end_time': 30,
+        'game_over': False
+    })
+
+
+# ============================================================
+# === API: PLACE ORDER (UNCHANGED CORE LOGIC) ================
+# ============================================================
+
+# ============================================================
+# --- IT IS WRONG CURRENTLY A PLACEHOLDER----
+# ============================================================
+
+@login_required
+@transaction.atomic
+def api_place_order(request):
+    if request.method != "POST":
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+
+    game_id = request.POST.get('game_id')
+    order_type = request.POST.get('type')
+
+    try:
+        price = int(request.POST.get('price'))
+    except (ValueError, TypeError):
+        return JsonResponse({'status': 'error', 'message': 'Price must be a whole number'})
+
+    game = GameSession.objects.select_for_update().get(id=game_id)
+    player = Player.objects.select_for_update().get(user=request.user, game=game)
+
+    current_round = game.current_round
+
+    # ✅ LIMIT: 1 order per type per round
+    if Order.objects.filter(
+        player=player,
+        game=game,
+        round_number=current_round,
+        order_type=order_type,
+        is_active=True
+    ).exists():
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Only ONE {order_type} allowed per round'
+        })
+
+    # ✅ SELL validation
+    if order_type == 'ASK' and player.asset_count < 1:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'You have no assets to sell'
+        })
+
+    # ✅ Create order
+    Order.objects.create(
+        player=player,
+        game=game,
+        order_type=order_type,
+        price=price,
+        round_number=current_round,
+        is_active=True
+    )
+
+    # ⛔ DO NOT deactivate other orders here
+
+    return JsonResponse({
+        'status': 'queued',
+        'message': 'Order placed. Waiting for match.'
+    })
+

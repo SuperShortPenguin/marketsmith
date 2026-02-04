@@ -1,0 +1,49 @@
+<h1>Round {{ game.current_round }}</h1>
+
+<p><strong>Seat:</strong> {{ player.seat_number }}</p>
+<p><strong>Cash:</strong> ${{ player.cash }}</p>
+<p><strong>Assets:</strong> {{ player.asset_count }}</p>
+
+<hr>
+
+<h2>Question</h2>
+<p>{{ question.text }}</p>
+
+<hr>
+
+<h2>Trade</h2>
+
+<input type="number" id="price" placeholder="Enter price" />
+
+<button onclick="placeOrder('BID')">Buy 1 Asset</button>
+<button onclick="placeOrder('ASK')">Sell 1 Asset</button>
+
+<p id="status"></p>
+
+<script>
+function placeOrder(type) {
+    const price = document.getElementById("price").value;
+
+    if (!price) {
+        alert("Enter a price");
+        return;
+    }
+
+    fetch("{% url 'api_order' %}", {
+        method: "POST",
+        headers: {
+            "X-CSRFToken": "{{ csrf_token }}",
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: new URLSearchParams({
+            game_id: "{{ game.id }}",
+            price: price,
+            type: type
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById("status").innerText = data.msg;
+    });
+}
+</script>
