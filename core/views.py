@@ -8,9 +8,7 @@ from django.db.models import Count
 from .models import GameSession, Player, Order, Transaction
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-
-import random
-
+import pandas as pd
 
 @login_required
 def home(request):
@@ -38,21 +36,6 @@ def home(request):
     return render(request, 'lobby/lobby.html', {
     'assigned': False
 })
-
-
-
-
-# --- HELPER: Math Question Generator ---
-def generate_question(digit):
-    """
-    Generates a question for the specific digit required for this round.
-    """
-    offset = random.randint(1, 20)
-    return {
-        "text": f"What is {digit + offset} - {offset}?",
-        # 'answer' intentionally not sent to frontend
-    }
-
 
 # ============================================================
 # === VIEW: MATCHMAKING ENTRY POINT (CORE LOGIC) ==============
@@ -211,8 +194,8 @@ def game_interface(request, game_id):
     # --- QUESTION GENERATION ---
     index = game.current_round - 1
     question = (
-        generate_question(game.hidden_array[index])
-        if index < len(game.hidden_array)
+        game.ques_list[index]
+        if index < len(game.ques_list)
         else {"text": "Waiting for game start..."}
     )
 
@@ -288,4 +271,3 @@ def api_place_order(request):
         'status': 'queued',
         'message': 'Order placed. Waiting for match.'
     })
-
