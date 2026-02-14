@@ -7,7 +7,7 @@
 <hr>
 
 <h2>Question</h2>
-<p>{{ question.text }}</p>
+<p>{{ question}}</p>
 
 <hr>
 
@@ -43,7 +43,7 @@ function placeOrder(type) {
     })
     .then(res => res.json())
     .then(data => {
-        document.getElementById("status").innerText = data.msg;
+        document.getElementById("status").innerText = data.message;
     });
 }
 </script>
