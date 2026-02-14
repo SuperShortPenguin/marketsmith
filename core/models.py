@@ -17,18 +17,24 @@ class GameSession(models.Model):
     # The Hidden Array: We store [d1, d2, d3, d4, d5, d6] as a JSON list
     # Example: [5, 1, 9, 2, 8, 3] -> Sum = 28 (True Asset Value)
     hidden_array = models.JSONField(default=list, blank=True)
-
+    ques_list = models.JSONField(default=list, blank=True)
 
     current_round = models.IntegerField(default=1)  # 1 to 6
     round_start_time = models.DateTimeField(null=True, blank=True)
 
     def initialize_game(self):
-        self.hidden_array = [random.randint(1, 9) for _ in range(6)]
+        from .question_generate import generate_question
+        self.hidden_array = []
+        self.ques_list = []
         self.current_round = 1
         self.is_active = True
+
+        for _ in range(6):
+            q = generate_question()
+            self.hidden_array.append(q['answer'])  # Store the answer in hidden_array
+            self.ques_list.append(q['question'])  # Store the question text in ques_list
+
         self.save()
-
-
 
 # --- 2. The User/Player (The Actor) ---
 class Player(models.Model):
@@ -72,8 +78,6 @@ class Order(models.Model):
 
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-
-
 
 class Transaction(models.Model):
     game = models.ForeignKey(GameSession, on_delete=models.CASCADE)
