@@ -31,11 +31,11 @@ def trades_df(df: pd.DataFrame) -> pd.DataFrame:
     num_bids = num_asks = 0
 
     for _, bid in bids_df.iterrows():
-        if bid['Amt'] > min_ask:
+        if bid['Amt'] >= min_ask:
             num_bids += 1
     
     for _, ask in asks_df.iterrows():
-        if ask['Amt'] < max_bid:
+        if ask['Amt'] <= max_bid:
             num_asks += 1
     
     num_trades = min(num_bids, num_asks)
@@ -62,4 +62,4 @@ def trades_df(df: pd.DataFrame) -> pd.DataFrame:
             'amt': min(bids_df.iloc[i]['Amt'], asks_df.iloc[i]['Amt'])
         })
     
-    return pd.DataFrame(columns=['from_id', 'to_id', 'amt']) if not trade_log else pd.DataFrame(trade_log)
+    return pd.DataFrame(trade_log, columns=['from_id', 'to_id', 'amt'])
