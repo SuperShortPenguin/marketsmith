@@ -10,13 +10,19 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import pandas as pd
 
-@login_required
 def home(request):
     """
     Home / Lobby.
     If user is already assigned to a game, force redirect.
     """
 
+    # 🚫 If not logged in → just show lobby
+    if not request.user.is_authenticated:
+        return render(request, 'lobby/lobby.html', {
+            'assigned': False
+        })
+
+    # ✅ Logged-in logic
     existing_player = Player.objects.filter(
         user=request.user,
         game__is_active=True
@@ -34,8 +40,9 @@ def home(request):
         return redirect('waiting_room', game_id=existing_player.game.id)
 
     return render(request, 'lobby/lobby.html', {
-    'assigned': False
-})
+        'assigned': False
+    })
+
 
 # ============================================================
 # === VIEW: MATCHMAKING ENTRY POINT (CORE LOGIC) ==============
@@ -128,7 +135,12 @@ def matchmaking(request):
 @login_required
 def waiting_room(request, game_id):
     game = get_object_or_404(GameSession, id=game_id)
-    player = get_object_or_404(Player, user=request.user, game=game)
+
+    player = Player.objects.filter(user=request.user, game=game).first()
+
+    if not player:
+        return redirect('home')
+
 
     if game.is_active:
         return redirect('game_interface', game_id=game.id)

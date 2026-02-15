@@ -19,6 +19,7 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import path
 from core import views
+from core.auth_views import register_view
 
 
 urlpatterns = [
@@ -43,5 +44,7 @@ urlpatterns = [
     path('game/<int:game_id>/', views.game_interface, name='game_interface'),
 
     path('api/order/', views.api_place_order, name='api_order'),
+
+    path('accounts/register/', register_view, name='register'),
 
 ]

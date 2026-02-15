@@ -4,22 +4,33 @@
     <title>Lobby</title>
 </head>
 <body>
-    <h1>Lobby</h1>
-    <p>Welcome {{ request.user.username }}</p>
 
-    {% if not assigned %}
-    <form method="post" action="{% url 'matchmaking' %}">
-        {% csrf_token %}
-        <button type="submit">Play</button>
-    </form>
+    <h1>Welcome to MarketSmith</h1>
+
+    {% if user.is_authenticated %}
+
+        <p>Hello, {{ user.username }}</p>
+
+        <form action="{% url 'matchmaking' %}" method="POST">
+            {% csrf_token %}
+            <button type="submit">Play</button>
+        </form>
+
+        <a href="{% url 'logout' %}">
+            <button type="button">Logout</button>
+        </a>
+
     {% else %}
-    <p>You are already assigned to a table.</p>
-    {% endif %}
 
-    <form method="post" action="{% url 'logout' %}">
-        {% csrf_token %}
-        <button type="submit">Logout</button>
-    </form>
+        <a href="{% url 'login' %}">
+            <button type="button">Login</button>
+        </a>
+
+        <a href="{% url 'register' %}">
+            <button type="button">Register</button>
+        </a>
+
+    {% endif %}
 
 </body>
 </html>
