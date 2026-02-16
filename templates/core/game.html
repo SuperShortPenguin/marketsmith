@@ -1,5 +1,9 @@
 <h1>Round {{ game.current_round }}</h1>
 
+<div id="timer" style="font-size: 24px; font-weight: bold; color: #d9534f; padding: 10px; background-color: #f5f5f5; border-radius: 5px; text-align: center; width: 100px; margin: 10px 0;">
+    <span id="timer-text">30</span>s
+</div>
+
 <p><strong>Seat:</strong> {{ player.seat_number }}</p>
 <p><strong>Cash:</strong> ${{ player.cash }}</p>
 <p><strong>Assets:</strong> {{ player.asset_count }}</p>
@@ -21,6 +25,44 @@
 <p id="status"></p>
 
 <script>
+// Timer functionality based on server time
+const roundStartTime = new Date('{{ round_start_time|date:"c" }}'); // ISO format from Django
+const serverCurrentTime = new Date('{{ current_server_time|date:"c" }}'); // ISO format from Django
+const roundDuration = {{ round_end_time }} * 1000; // Convert to milliseconds
+const roundEndTime = new Date(roundStartTime.getTime() + roundDuration);
+
+const timerDisplay = document.getElementById('timer-text');
+let refreshScheduled = false;
+
+function updateTimer() {
+    // Calculate current time on client
+    const clientNow = new Date();
+    const elapsedSincePageLoad = clientNow - serverCurrentTime; // Offset from server time
+    const adjustedNow = new Date(serverCurrentTime.getTime() + elapsedSincePageLoad);
+    
+    // Calculate remaining time
+    const timeRemaining = Math.max(0, roundEndTime - adjustedNow);
+    const secondsRemaining = Math.ceil(timeRemaining / 1000);
+    
+    timerDisplay.innerText = Math.max(0, secondsRemaining - 1);
+    
+    // Red warning when 5 seconds or less
+    if (secondsRemaining <= 5) {
+        document.getElementById('timer').style.color = '#d9534f';
+    }
+    
+    // Refresh when time is up
+    if (secondsRemaining <= 0 && !refreshScheduled) {
+        refreshScheduled = true;
+        clearInterval(timerInterval);
+        location.reload();
+    }
+}
+
+// Start timer immediately
+const timerInterval = setInterval(updateTimer, 100); // Update more frequently for accuracy
+updateTimer(); // Initial update
+
 function placeOrder(type) {
     const price = document.getElementById("price").value;
 
