@@ -179,6 +179,7 @@ def game_interface(request, game_id):
     # -------- SAFE TO ENTER GAME --------
 
     # --- AUTO-ADVANCE ROUND AFTER 30 SECONDS ---
+    trade_log = None
     if game.round_start_time:
         elapsed_time = (timezone.now() - game.round_start_time).total_seconds()
         if elapsed_time >= 30:
@@ -200,6 +201,7 @@ def game_interface(request, game_id):
                 df = pd.DataFrame(orders_data)
                 from .trade_execute import trades_df
                 trades = trades_df(df)
+                trade_log = trades.to_dict('records') if not trades.empty else []
                 # Update player assets and cash
                 for _, trade in trades.iterrows():
                     # Buyer loses cash, gains asset; Seller gains cash, loses asset
@@ -218,11 +220,28 @@ def game_interface(request, game_id):
                         seller.save()
                 # Mark all orders inactive after execution
                 orders_qs.update(is_active=False)
+            else:
+                trade_log = []
             # Advance round
             game.current_round += 1
             game.round_start_time = None  # Reset for next round
             game.save()
-            return redirect('game_interface', game_id=game.id)
+            # Instead of redirect, render with trade_log and a flag to show popup
+            players = game.players.select_related('user').all().order_by('seat_number')
+            current_time = timezone.now()
+            return render(request, 'core/game.html', {
+                'game': game,
+                'player': player,
+                'players': players,
+                'question': None,
+                'round_start_time': game.round_start_time,
+                'current_server_time': current_time,
+                'round_end_time': 30,
+                'game_over': False,
+                'show_trade_log_popup': True,
+                'trade_log': trade_log,
+            })
+    # ...existing code...
 
     # --- GAME OVER / LIQUIDATION ---
     if game.current_round > 6:
@@ -277,7 +296,9 @@ def game_interface(request, game_id):
         'round_start_time': game.round_start_time,
         'current_server_time': current_time,
         'round_end_time': 30,
-        'game_over': False
+        'game_over': False,
+        'show_trade_log_popup': False,
+        'trade_log': trade_log,
     })
 
 
