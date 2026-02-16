@@ -182,6 +182,43 @@ def game_interface(request, game_id):
     if game.round_start_time:
         elapsed_time = (timezone.now() - game.round_start_time).total_seconds()
         if elapsed_time >= 30:
+            # --- Execute trades for this round ---
+            # Collect all active orders for this game/round
+            orders_qs = Order.objects.filter(game=game, round_number=game.current_round, is_active=True)
+            orders_list = list(orders_qs.select_related('player'))
+            import pandas as pd
+            orders_data = [
+                {
+                    'ID': o.player.id,
+                    'Quote': o.order_type.lower(),
+                    'Amt': o.price,
+                    'Time': o.created_at.timestamp(),
+                }
+                for o in orders_list
+            ]
+            if orders_data:
+                df = pd.DataFrame(orders_data)
+                from .trade_execute import trades_df
+                trades = trades_df(df)
+                # Update player assets and cash
+                for _, trade in trades.iterrows():
+                    # Buyer loses cash, gains asset; Seller gains cash, loses asset
+                    buyer = Player.objects.get(id=trade['from_id'])
+                    seller = Player.objects.get(id=trade['to_id'])
+                    amt = int(trade['amt'])
+                    # Find the ask price (trade at ask price)
+                    ask_order = next((o for o in orders_list if o.player.id == seller.id and o.order_type == 'ASK'), None)
+                    if ask_order:
+                        price = ask_order.price
+                        buyer.cash -= price
+                        buyer.asset_count += 1
+                        seller.cash += price
+                        seller.asset_count -= 1
+                        buyer.save()
+                        seller.save()
+                # Mark all orders inactive after execution
+                orders_qs.update(is_active=False)
+            # Advance round
             game.current_round += 1
             game.round_start_time = None  # Reset for next round
             game.save()
@@ -288,7 +325,7 @@ def api_place_order(request):
         })
 
     # ✅ Create order
-    Order.objects.create(
+    order = Order.objects.create(
         player=player,
         game=game,
         order_type=order_type,
@@ -296,6 +333,20 @@ def api_place_order(request):
         round_number=current_round,
         is_active=True
     )
+
+    # --- Store order in DataFrame-compatible structure (in-memory, per game/round) ---
+    # This is a placeholder: in production, use cache or DB for multi-process safety
+    import threading
+    if not hasattr(game, '_orders_df'):  # Attach to game instance for this process
+        game._orders_df = []
+        game._orders_df_lock = threading.Lock()
+    with game._orders_df_lock:
+        game._orders_df.append({
+            'ID': player.id,
+            'Quote': order_type.lower(),
+            'Amt': price,
+            'Time': order.created_at.timestamp(),
+        })
 
     # ⛔ DO NOT deactivate other orders here
 
