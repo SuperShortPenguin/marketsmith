@@ -3,6 +3,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.db import transaction
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.db.models import Count
 from .models import GameSession, Player, Order, Transaction
@@ -177,6 +178,15 @@ def game_interface(request, game_id):
 
     # -------- SAFE TO ENTER GAME --------
 
+    # --- AUTO-ADVANCE ROUND AFTER 30 SECONDS ---
+    if game.round_start_time:
+        elapsed_time = (timezone.now() - game.round_start_time).total_seconds()
+        if elapsed_time >= 30:
+            game.current_round += 1
+            game.round_start_time = None  # Reset for next round
+            game.save()
+            return redirect('game_interface', game_id=game.id)
+
     # --- GAME OVER / LIQUIDATION ---
     if game.current_round > 6:
 
@@ -197,6 +207,11 @@ def game_interface(request, game_id):
             'game_over': True
         })
 
+    # --- INITIALIZE ROUND START TIME (if not set) ---
+    if not game.round_start_time:
+        game.round_start_time = timezone.now()
+        game.save()
+
     # --- ROUND 4 BONUS ---
     if game.current_round >= 4 and not player.has_received_bonus:
         player.asset_count += 1
@@ -211,10 +226,15 @@ def game_interface(request, game_id):
         else {"text": "Waiting for game start..."}
     )
 
+    # --- Calculate server timestamp for accurate timer ---
+    current_time = timezone.now()
+
     return render(request, 'core/game.html', {
         'game': game,
         'player': player,
         'question': question,
+        'round_start_time': game.round_start_time,
+        'current_server_time': current_time,
         'round_end_time': 30,
         'game_over': False
     })
