@@ -1,4 +1,25 @@
 <h1>Round {{ game.current_round }}</h1>
+<div style="margin-bottom: 24px;">
+    <h2 style="margin-bottom: 8px;">Scoreboard</h2>
+    <table style="width: 100%; border-collapse: collapse; background: #f8f9fa; border-radius: 8px; overflow: hidden;">
+        <thead style="background: #e9ecef;">
+            <tr>
+                <th style="padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;">Player</th>
+                <th style="padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;">Assets</th>
+                <th style="padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;">Cash</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in players %}
+            <tr {% if p.id == player.id %}style="background: #d1ecf1; font-weight: bold;"{% endif %}>
+                <td style="padding: 8px; border-bottom: 1px solid #dee2e6;">{{ p.user.username }} (Seat {{ p.seat_number }})</td>
+                <td style="padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;">{{ p.asset_count }}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;">${{ p.cash }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 
 <div id="timer" style="font-size: 24px; font-weight: bold; color: #d9534f; padding: 10px; background-color: #f5f5f5; border-radius: 5px; text-align: center; width: 100px; margin: 10px 0;">
     <span id="timer-text">30</span>s
