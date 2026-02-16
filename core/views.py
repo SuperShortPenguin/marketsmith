@@ -250,10 +250,11 @@ def game_interface(request, game_id):
         game.save()
 
     # --- ROUND 4 BONUS ---
-    if game.current_round >= 4 and not player.has_received_bonus:
-        player.asset_count += 1
-        player.has_received_bonus = True
-        player.save()
+    if game.current_round >= 4:
+        for p in game.players.filter(has_received_bonus=False):
+            p.asset_count += 1
+            p.has_received_bonus = True
+            p.save()
 
     # --- QUESTION GENERATION ---
     index = game.current_round - 1
@@ -266,9 +267,12 @@ def game_interface(request, game_id):
     # --- Calculate server timestamp for accurate timer ---
     current_time = timezone.now()
 
+    # Get all players for scoreboard
+    players = game.players.select_related('user').all().order_by('seat_number')
     return render(request, 'core/game.html', {
         'game': game,
         'player': player,
+        'players': players,
         'question': question,
         'round_start_time': game.round_start_time,
         'current_server_time': current_time,
