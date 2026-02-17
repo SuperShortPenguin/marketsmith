@@ -12,7 +12,7 @@ from asgiref.sync import async_to_sync
 from django.shortcuts import get_object_or_404, redirect
 from core.models import Profile
 import pandas as pd
-
+from django.contrib.auth.models import User
 
 
 
@@ -490,3 +490,16 @@ def api_place_order(request):
         'status': 'queued',
         'message': 'Order placed. Waiting for match.'
     })
+
+def view_player_info(request):
+    users = list(
+        User.objects.all().values(
+            "id",
+            "username",
+            "email",
+            "is_active",
+            "date_joined",
+            "last_login"
+        )
+    )
+    return JsonResponse({"users": users})

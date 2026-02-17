@@ -27,9 +27,9 @@ urlpatterns = [
 
     # Screen 1: Login
     path(
-    'accounts/login/',
-    auth_views.LoginView.as_view(template_name='accounts/login.html'),
-    name='login'
+        'accounts/login/',
+        auth_views.LoginView.as_view(template_name='accounts/login.html'),
+        name='login'
     ),
 
     path('accounts/logout/', auth_views.LogoutView.as_view(), name='logout'),
@@ -49,5 +49,6 @@ urlpatterns = [
 
     path('cleanup/<int:game_id>/', views.cleanup_game, name='cleanup_game'),
 
+    path('view_players/', views.view_player_info, name='players')
 
 ]
