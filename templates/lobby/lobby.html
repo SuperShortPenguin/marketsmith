@@ -16,9 +16,11 @@
             <button type="submit">Play</button>
         </form>
 
-        <a href="{% url 'logout' %}">
-            <button type="button">Logout</button>
-        </a>
+        <form method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button type="submit">Logout</button>
+        </form>
+
 
         {% if user.is_authenticated %}
         <h3>Total Net PnL: {{ total_pnl }}</h3>
