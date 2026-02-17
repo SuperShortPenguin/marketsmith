@@ -20,6 +20,11 @@
             <button type="button">Logout</button>
         </a>
 
+        {% if user.is_authenticated %}
+        <h3>Total Net PnL: {{ total_pnl }}</h3>
+        {% endif %}
+
+
     {% else %}
 
         <a href="{% url 'login' %}">

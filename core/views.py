@@ -120,6 +120,13 @@ def matchmaking(request):
         open_game.initialize_game()
         open_game.is_active = True
         open_game.save()
+        # NOTIFY ALL WAITING CLIENTS THAT GAME STARTED
+        async_to_sync(get_channel_layer().group_send)(
+            f"waiting_{open_game.id}",
+            {
+                "type": "game_started",
+            }
+        )
         return redirect('game_interface', game_id=open_game.id)
 
     # 8️⃣ Otherwise stay in waiting room

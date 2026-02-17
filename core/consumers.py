@@ -28,3 +28,9 @@ class WaitingRoomConsumer(AsyncWebsocketConsumer):
             "player_count": event["player_count"]
         }))
 
+    # HANDLER FOR group_send(type="game_started")
+    async def game_started(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "game_started"
+        }))
+

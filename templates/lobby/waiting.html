@@ -2,8 +2,10 @@
 
 <p><strong>Your seat:</strong> {{ player.seat_number }}</p>
 
-<p id="count">
-    Players joined: {{ player_count }} / {{ max_players }}
+<p>
+    Players joined:
+    <span id="player-count">{{ player_count }}</span>
+    / {{ max_players }}
 </p>
 
 <script>
@@ -17,13 +19,14 @@
     socket.onmessage = function (event) {
         const data = JSON.parse(event.data);
 
-        if (data.type === "player_joined") {
-            document.getElementById("count").innerText =
-                `Players joined: ${data.player_count} / ${maxPlayers}`;
+    if (data.type === "player_joined") {
+        document.getElementById("player-count").innerText = data.player_count;
+    }
 
-            if (data.player_count === maxPlayers) {
-                window.location.href = `/game/${gameId}/`;
-            }
-        }
-    };
+    if (data.type === "game_started") {
+        window.location.href = "/game/{{ game.id }}/";
+    }
+};
+
+
 </script>

@@ -1,0 +1,43 @@
+<h2>Final Leaderboard</h2>
+
+<table border="1" cellpadding="8">
+    <tr>
+        <th>Player</th>
+        <th>Seat</th>
+        <th>Cash</th>
+        <th>Assets</th>
+        <th>Net PnL</th>
+    </tr>
+
+    {% for p in players %}
+    <tr>
+        <td>{{ p.username }}</td>
+        <td>{{ p.seat }}</td>
+        <td>{{ p.cash }}</td>
+        <td>{{ p.assets }}</td>
+        <td>{{ p.net_pnl }}</td>
+    </tr>
+    {% endfor %}
+</table>
+
+<p>
+Redirecting to home in
+<span id="countdown">{{ remaining_time }}</span> seconds...
+</p>
+
+<script>
+let timeLeft = {{ remaining_time }};
+const countdownEl = document.getElementById("countdown");
+
+const interval = setInterval(() => {
+    timeLeft--;
+    countdownEl.innerText = timeLeft;
+
+    if (timeLeft <= 0) {
+        clearInterval(interval);
+        window.location.href = "/";
+    }
+}, 1000);
+</script>
+
+

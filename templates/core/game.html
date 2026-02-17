@@ -49,7 +49,7 @@
             <tr>
                 <th style="padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;">Player</th>
                 <th style="padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;">Assets</th>
-                <th style="padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;">Cash</th>
+                <th style="padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;">PnL</th>
             </tr>
         </thead>
         <tbody>
@@ -102,43 +102,51 @@
         }
     });
 {% endif %}
+{% if not show_trade_log_popup %}
+
 // Timer functionality based on server time
-const roundStartTime = new Date('{{ round_start_time|date:"c" }}'); // ISO format from Django
-const serverCurrentTime = new Date('{{ current_server_time|date:"c" }}'); // ISO format from Django
-const roundDuration = {{ round_end_time }} * 1000; // Convert to milliseconds
-const roundEndTime = new Date(roundStartTime.getTime() + roundDuration);
+const roundStartTime = new Date('{{ round_start_time|date:"c" }}');
+const serverCurrentTime = new Date('{{ current_server_time|date:"c" }}');
+const roundDuration = {{ round_end_time }} * 1000;
 
-const timerDisplay = document.getElementById('timer-text');
-let refreshScheduled = false;
+if (!isNaN(roundStartTime.getTime())) {
 
-function updateTimer() {
-    // Calculate current time on client
-    const clientNow = new Date();
-    const elapsedSincePageLoad = clientNow - serverCurrentTime; // Offset from server time
-    const adjustedNow = new Date(serverCurrentTime.getTime() + elapsedSincePageLoad);
-    
-    // Calculate remaining time
-    const timeRemaining = Math.max(0, roundEndTime - adjustedNow);
-    const secondsRemaining = Math.ceil(timeRemaining / 1000);
-    
-    timerDisplay.innerText = Math.max(0, secondsRemaining - 1);
-    
-    // Red warning when 5 seconds or less
-    if (secondsRemaining <= 5) {
-        document.getElementById('timer').style.color = '#d9534f';
+    const roundEndTime = new Date(roundStartTime.getTime() + roundDuration);
+    const timerDisplay = document.getElementById('timer-text');
+    let refreshScheduled = false;
+
+    function updateTimer() {
+        const clientNow = new Date();
+        const elapsedSincePageLoad = clientNow - serverCurrentTime;
+        const adjustedNow = new Date(serverCurrentTime.getTime() + elapsedSincePageLoad);
+
+        const timeRemaining = Math.max(0, roundEndTime - adjustedNow);
+        const secondsRemaining = Math.ceil(timeRemaining / 1000);
+
+        timerDisplay.innerText = Math.max(0, secondsRemaining);
+
+        if (secondsRemaining <= 5) {
+            document.getElementById('timer').style.color = '#d9534f';
+        }
+
+        if (secondsRemaining <= 0 && !refreshScheduled) {
+            refreshScheduled = true;
+            clearInterval(timerInterval);
+            location.reload();
+        }
     }
-    
-    // Refresh when time is up
-    if (secondsRemaining <= 0 && !refreshScheduled) {
-        refreshScheduled = true;
-        clearInterval(timerInterval);
-        location.reload();
-    }
+
+    const timerInterval = setInterval(updateTimer, 100);
+    updateTimer();
 }
 
-// Start timer immediately
-const timerInterval = setInterval(updateTimer, 100); // Update more frequently for accuracy
-updateTimer(); // Initial update
+{% else %}
+
+// LOG PHASE → hide timer completely
+document.getElementById('timer').style.display = 'none';
+
+{% endif %}
+
 
 function placeOrder(type) {
     const price = document.getElementById("price").value;

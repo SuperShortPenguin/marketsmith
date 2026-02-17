@@ -2,13 +2,23 @@
 from django.contrib.auth.decorators import login_required
 from django.db import models
 from django.contrib.auth.models import User
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from django.utils import timezone
 import random
 from django.shortcuts import redirect, get_object_or_404
+
+@receiver(post_save, sender=User)
+def create_user_profile(sender, instance, created, **kwargs):
+    if created:
+        Profile.objects.create(user=instance)
 
 
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    techhnex_id = models.CharField(max_length=100, unique=True)
+    techhnex_id = models.CharField(max_length=100, unique=True, null=True, blank=True)
+
+    total_pnl = models.IntegerField(default=0)
 
     def __str__(self):
         return self.user.username
@@ -27,8 +37,16 @@ class GameSession(models.Model):
     hidden_array = models.JSONField(default=list, blank=True)
     ques_list = models.JSONField(default=list, blank=True)
 
+    last_trade_log = models.JSONField(default=list, blank=True)
+
     current_round = models.IntegerField(default=1)  # 1 to 6
     round_start_time = models.DateTimeField(null=True, blank=True)
+
+    round_phase = models.CharField(max_length=20, default="play")
+    # values:
+    # play
+    # log
+    # final
 
     def initialize_game(self):
         from .question_generate import generate_question
@@ -36,13 +54,16 @@ class GameSession(models.Model):
         self.ques_list = []
         self.current_round = 1
         self.is_active = True
+        self.round_phase = "play"
+        self.round_start_time = timezone.now()
 
         for _ in range(6):
             q = generate_question()
-            self.hidden_array.append(q['answer'])  # Store the answer in hidden_array
-            self.ques_list.append(q['question'])  # Store the question text in ques_list
+            self.hidden_array.append(q['answer'])
+            self.ques_list.append(q['question'])
 
         self.save()
+
 
 # --- 2. The User/Player (The Actor) ---
 class Player(models.Model):
