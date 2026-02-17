@@ -217,7 +217,7 @@ def game_interface(request, game_id):
 
         players = []
         for p in game.players.select_related('user'):
-            final_score = p.cash + (p.asset_count * true_asset_value)
+            final_score = p.cash + ((p.asset_count-3) * true_asset_value)
 
             players.append({
                 "username": p.user.username,
