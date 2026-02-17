@@ -47,4 +47,7 @@ urlpatterns = [
 
     path('accounts/register/', register_view, name='register'),
 
+    path('cleanup/<int:game_id>/', views.cleanup_game, name='cleanup_game'),
+
+
 ]

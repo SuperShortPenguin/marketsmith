@@ -25,6 +25,8 @@ Redirecting to home in
 <span id="countdown">{{ remaining_time }}</span> seconds...
 </p>
 
+
+
 <script>
 let timeLeft = {{ remaining_time }};
 const countdownEl = document.getElementById("countdown");
@@ -35,7 +37,7 @@ const interval = setInterval(() => {
 
     if (timeLeft <= 0) {
         clearInterval(interval);
-        window.location.href = "/";
+        window.location.href = "/cleanup/{{ game.id }}/";
     }
 }, 1000);
 </script>

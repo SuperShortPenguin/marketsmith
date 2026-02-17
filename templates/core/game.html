@@ -1,47 +1,53 @@
-{% load player_extras %}
+
 <h1>Round {{ game.current_round }}</h1>
 
+<!-- Trade Log Popup Modal -->
 <!-- Trade Log Popup Modal -->
 <div id="tradeLogModal" style="display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); align-items: center; justify-content: center;">
     <div style="background: #fff; color: #222; border-radius: 10px; padding: 32px 24px; min-width: 320px; max-width: 90vw; box-shadow: 0 8px 32px rgba(0,0,0,0.2); margin: auto;">
         <h2 style="margin-top: 0;">Trade Log (Last Round)</h2>
-        <div id="tradeLogContent">
-            {% if trade_log is not None and show_trade_log_popup %}
-                {% if trade_log|length > 0 %}
-                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px;">
-                        <thead>
+
+        {% if trade_log and show_trade_log_popup %}
+
+            {% if trade_log|length > 0 %}
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px;">
+                    <thead>
+                        <tr>
+                            <th style="padding: 6px; border-bottom: 1px solid #ccc;">Buyer</th>
+                            <th style="padding: 6px; border-bottom: 1px solid #ccc;">Seller</th>
+                            <th style="padding: 6px; border-bottom: 1px solid #ccc;">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t in trade_log %}
                             <tr>
-                                <th style="padding: 6px; border-bottom: 1px solid #ccc;">Buyer</th>
-                                <th style="padding: 6px; border-bottom: 1px solid #ccc;">Seller</th>
-                                <th style="padding: 6px; border-bottom: 1px solid #ccc;">Amount</th>
+                                <td style="padding: 6px; border-bottom: 1px solid #eee;">
+                                    {{ t.buyer }}
+                                </td>
+                                <td style="padding: 6px; border-bottom: 1px solid #eee;">
+                                    {{ t.seller }}
+                                </td>
+                                <td style="padding: 6px; border-bottom: 1px solid #eee;">
+                                    ${{ t.price }}
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            {% for t in trade_log %}
-                                <tr>
-                                    <td style="padding: 6px; border-bottom: 1px solid #eee;">
-                                        {% with buyer=players|get_player_by_id:t.from_id %}
-                                            {{ buyer.user.username }} (Seat {{ buyer.seat_number }})
-                                        {% endwith %}
-                                    </td>
-                                    <td style="padding: 6px; border-bottom: 1px solid #eee;">
-                                        {% with seller=players|get_player_by_id:t.to_id %}
-                                            {{ seller.user.username }} (Seat {{ seller.seat_number }})
-                                        {% endwith %}
-                                    </td>
-                                    <td style="padding: 6px; border-bottom: 1px solid #eee;">${{ t.amt }}</td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                {% else %}
-                    <div style="font-size: 1.1em; color: #888; margin-bottom: 12px;">No trades executed</div>
-                {% endif %}
-                <div style="text-align: right; color: #888; font-size: 0.95em;">Continuing to next round...</div>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div style="font-size: 1.1em; color: #888; margin-bottom: 12px;">
+                    No trades executed
+                </div>
             {% endif %}
-        </div>
+
+            <div style="text-align: right; color: #888; font-size: 0.95em;">
+                Continuing to next round...
+            </div>
+
+        {% endif %}
     </div>
 </div>
+
 <div style="margin-bottom: 24px;">
     <h2 style="margin-bottom: 8px;">Scoreboard</h2>
     <table style="width: 100%; border-collapse: collapse; background: #f8f9fa; border-radius: 8px; overflow: hidden;">

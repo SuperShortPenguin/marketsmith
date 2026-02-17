@@ -31,6 +31,7 @@ class GameSession(models.Model):
     is_active = models.BooleanField(default=False)  # game started
     is_finished = models.BooleanField(default=False)  # game ended
     created_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
 
     # The Hidden Array: We store [d1, d2, d3, d4, d5, d6] as a JSON list
     # Example: [5, 1, 9, 2, 8, 3] -> Sum = 28 (True Asset Value)

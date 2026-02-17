@@ -9,7 +9,26 @@ from django.db.models import Count
 from .models import GameSession, Player, Order, Transaction
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+from django.shortcuts import get_object_or_404, redirect
+from core.models import Profile
 import pandas as pd
+
+
+
+
+@login_required
+def cleanup_game(request, game_id):
+    game = GameSession.objects.filter(id=game_id).first()
+
+    if not game:
+        return redirect("home")
+
+    if game.is_finished:
+        game.delete()
+
+    return redirect("home")
+
+
 
 def home(request):
     """
@@ -26,8 +45,12 @@ def home(request):
     # ✅ Logged-in logic
     existing_player = Player.objects.filter(
         user=request.user,
-        game__is_active=True
+        game__is_active=False,
+        game__is_finished=False
     ).first()
+
+    if existing_player:
+        return redirect('waiting_room', game_id=existing_player.game.id)
 
     if existing_player:
         return redirect('game_interface', game_id=existing_player.game.id)
@@ -40,8 +63,12 @@ def home(request):
     if existing_player:
         return redirect('waiting_room', game_id=existing_player.game.id)
 
-    return render(request, 'lobby/lobby.html', {
-        'assigned': False
+    profile = Profile.objects.filter(user=request.user).first()
+
+    total_pnl = profile.total_pnl if profile else 0
+
+    return render(request, "lobby/lobby.html",{
+        "total_pnl": total_pnl
     })
 
 
@@ -168,33 +195,143 @@ def waiting_room(request, game_id):
 
 @login_required
 def game_interface(request, game_id):
-    game = get_object_or_404(GameSession, id=game_id)
+    game = GameSession.objects.filter(id=game_id).first()
+    if not game:
+        return redirect("home")
 
-    # ❌ Game not started → waiting room
-    # if not game.is_active:
-    #     return redirect('waiting_room', game_id=game.id)
-
-    # ❌ Game finished → matchmaking
+    # =====================================================
+    # === HANDLE FINISHED GAME (Leaderboard Phase) ========
+    # =====================================================
     if game.is_finished:
-        return redirect('home')
 
-    # ❌ User not part of this game
+        if not game.finished_at:
+            return redirect("home")
+
+        elapsed = (timezone.now() - game.finished_at).total_seconds()
+
+        # After 30 seconds → go home
+        if elapsed >= 30:
+            return redirect("home")
+
+        true_asset_value = sum(game.hidden_array) if game.hidden_array else 0
+
+        players = []
+        for p in game.players.select_related('user'):
+            final_score = p.cash + (p.asset_count * true_asset_value)
+
+            players.append({
+                "username": p.user.username,
+                "seat": p.seat_number,
+                "cash": p.cash,
+                "assets": p.asset_count,
+                "net_pnl": final_score
+            })
+
+        players = sorted(players, key=lambda x: x["net_pnl"], reverse=True)
+
+        return render(request, "core/game_over.html", {
+            "game": game,
+            "players": players,
+            "remaining_time": int(30 - elapsed)
+        })
+
+    # =====================================================
+    # === NORMAL GAME FLOW ================================
+    # =====================================================
+
     player = Player.objects.filter(user=request.user, game=game).first()
     if not player:
-        return redirect('home')
+        return redirect("home")
 
-    # -------- SAFE TO ENTER GAME --------
-
-    # --- AUTO-ADVANCE ROUND AFTER 30 SECONDS ---
     trade_log = None
-    if game.round_start_time:
-        elapsed_time = (timezone.now() - game.round_start_time).total_seconds()
-        if elapsed_time >= 30:
-            # --- Execute trades for this round ---
-            # Collect all active orders for this game/round
-            orders_qs = Order.objects.filter(game=game, round_number=game.current_round, is_active=True)
+
+    # =====================================================
+    # ================= FINAL PHASE =======================
+    # =====================================================
+    if game.current_round > 6:
+
+        true_asset_value = sum(game.hidden_array) if game.hidden_array else 0
+
+        # Mark game finished ONLY ONCE
+        if not game.is_finished:
+            for p in game.players.all():
+                final_score = p.cash + (p.asset_count * true_asset_value)
+
+                profile, _ = Profile.objects.get_or_create(user=p.user)
+                profile.total_pnl += final_score
+                profile.save()
+
+            game.is_finished = True
+            game.is_active = False
+            game.finished_at = timezone.now()
+            game.save()
+
+        # Redirect so top block handles leaderboard
+        return redirect("game_interface", game_id=game.id)
+
+    # =====================================================
+    # ================= LOG PHASE =========================
+    # =====================================================
+    if game.round_phase == "log":
+
+        elapsed = (timezone.now() - game.round_start_time).total_seconds()
+
+        # 🔴 Move to next round after 10 seconds
+        if elapsed >= 10:
+            game.current_round += 1
+            game.round_phase = "play"
+            game.round_start_time = timezone.now()
+
+            # 🔴 Clear previous trade log
+            game.last_trade_log = []
+            game.save()
+
+            return redirect("game_interface", game_id=game.id)
+
+        # 🔴 Fetch trade log from JSONField
+        trade_log = game.last_trade_log
+
+        players = game.players.select_related('user').order_by('seat_number')
+
+        return render(request, 'core/game.html', {
+            'game': game,
+            'player': player,
+            'players': players,
+            'question': None,
+            'round_start_time': None,
+            'current_server_time': timezone.now(),
+            'round_end_time': 0,
+            'show_trade_log_popup': True,
+            'trade_log': trade_log,
+        })
+
+    # =====================================================
+    # ================= PLAY PHASE ========================
+    # =====================================================
+    if game.round_phase == "play":
+
+        if game.round_start_time is None:
+            game.round_start_time = timezone.now()
+            game.save()
+
+        if game.current_round >= 4:
+            for p in game.players.filter(has_received_bonus=False):
+                p.asset_count += 1
+                p.has_received_bonus = True
+                p.save()
+
+        elapsed = (timezone.now() - game.round_start_time).total_seconds()
+
+        if elapsed >= 30:
+
+            orders_qs = Order.objects.filter(
+                game=game,
+                round_number=game.current_round,
+                is_active=True
+            )
+
             orders_list = list(orders_qs.select_related('player'))
-            import pandas as pd
+
             orders_data = [
                 {
                     'ID': o.player.id,
@@ -204,109 +341,76 @@ def game_interface(request, game_id):
                 }
                 for o in orders_list
             ]
+
+            round_trades = []  # 🔴 This will go into last_trade_log
+
             if orders_data:
                 df = pd.DataFrame(orders_data)
                 from .trade_execute import trades_df
                 trades = trades_df(df)
-                trade_log = trades.to_dict('records') if not trades.empty else []
-                # Update player assets and cash
-                for _, trade in trades.iterrows():
-                    # Buyer loses cash, gains asset; Seller gains cash, loses asset
-                    buyer = Player.objects.get(id=trade['from_id'])
-                    seller = Player.objects.get(id=trade['to_id'])
-                    amt = int(trade['amt'])
-                    # Find the ask price (trade at ask price)
-                    ask_order = next((o for o in orders_list if o.player.id == seller.id and o.order_type == 'ASK'), None)
-                    if ask_order:
-                        price = ask_order.price
-                        buyer.cash -= price
-                        buyer.asset_count += 1
-                        seller.cash += price
-                        seller.asset_count -= 1
-                        buyer.save()
-                        seller.save()
-                # Mark all orders inactive after execution
-                orders_qs.update(is_active=False)
-            else:
-                trade_log = []
-            # Advance round
-            game.current_round += 1
-            game.round_start_time = None  # Reset for next round
-            game.save()
-            # Instead of redirect, render with trade_log and a flag to show popup
-            players = game.players.select_related('user').all().order_by('seat_number')
-            current_time = timezone.now()
-            return render(request, 'core/game.html', {
-                'game': game,
-                'player': player,
-                'players': players,
-                'question': None,
-                'round_start_time': game.round_start_time,
-                'current_server_time': current_time,
-                'round_end_time': 30,
-                'game_over': False,
-                'show_trade_log_popup': True,
-                'trade_log': trade_log,
-            })
-    # ...existing code...
 
-    # --- GAME OVER / LIQUIDATION ---
-    if game.current_round > 6:
+                if not trades.empty:
+                    for _, trade in trades.iterrows():
+                        buyer = Player.objects.get(id=trade['from_id'])
+                        seller = Player.objects.get(id=trade['to_id'])
 
-        # ✅ MARK GAME AS FINISHED (DO THIS ONCE)
-        if not game.is_finished:
-            game.is_finished = True
-            game.is_active = False
+                        ask_order = next(
+                            (o for o in orders_list
+                             if o.player.id == seller.id and o.order_type == 'ASK'),
+                            None
+                        )
+
+                        if ask_order:
+                            price = ask_order.price
+
+                            # Update balances
+                            buyer.cash -= price
+                            buyer.asset_count += 1
+                            seller.cash += price
+                            seller.asset_count -= 1
+
+                            buyer.save()
+                            seller.save()
+
+                            # 🔴 STORE TRADE IN JSON FIELD
+                            round_trades.append({
+                                "buyer": buyer.user.username,
+                                "seller": seller.user.username,
+                                "price": price
+                            })
+
+            # 🔴 Save trade log to GameSession
+            game.last_trade_log = round_trades
+            orders_qs.update(is_active=False)
+
+            game.round_phase = "log"
+            game.round_start_time = timezone.now()
             game.save()
 
-        true_asset_value = sum(game.hidden_array)
-        final_score = player.cash + (player.asset_count * true_asset_value)
+            return redirect("game_interface", game_id=game.id)
 
-        return render(request, 'core/game_over.html', {
+        index = game.current_round - 1
+        question = (
+            game.ques_list[index]
+            if index < len(game.ques_list)
+            else {"text": "Waiting..."}
+        )
+
+        players = game.players.select_related('user').order_by('seat_number')
+
+        return render(request, 'core/game.html', {
             'game': game,
             'player': player,
-            'true_asset_value': true_asset_value,
-            'final_score': final_score,
-            'game_over': True
+            'players': players,
+            'question': question,
+            'round_start_time': game.round_start_time,
+            'current_server_time': timezone.now(),
+            'round_end_time': 30,
+            'show_trade_log_popup': False,
+            'trade_log': trade_log,
         })
 
-    # --- INITIALIZE ROUND START TIME (if not set) ---
-    if not game.round_start_time:
-        game.round_start_time = timezone.now()
-        game.save()
 
-    # --- ROUND 4 BONUS ---
-    if game.current_round >= 4:
-        for p in game.players.filter(has_received_bonus=False):
-            p.asset_count += 1
-            p.has_received_bonus = True
-            p.save()
-
-    # --- QUESTION GENERATION ---
-    index = game.current_round - 1
-    question = (
-        game.ques_list[index]
-        if index < len(game.ques_list)
-        else {"text": "Waiting for game start..."}
-    )
-
-    # --- Calculate server timestamp for accurate timer ---
-    current_time = timezone.now()
-
-    # Get all players for scoreboard
-    players = game.players.select_related('user').all().order_by('seat_number')
-    return render(request, 'core/game.html', {
-        'game': game,
-        'player': player,
-        'players': players,
-        'question': question,
-        'round_start_time': game.round_start_time,
-        'current_server_time': current_time,
-        'round_end_time': 30,
-        'game_over': False,
-        'show_trade_log_popup': False,
-        'trade_log': trade_log,
-    })
 
 
 # ============================================================
