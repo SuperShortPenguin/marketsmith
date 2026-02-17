@@ -21,16 +21,15 @@ class WaitingRoomConsumer(AsyncWebsocketConsumer):
             self.channel_name
         )
 
-    # HANDLER FOR group_send(type="player_joined")
     async def player_joined(self, event):
         await self.send(text_data=json.dumps({
             "type": "player_joined",
             "player_count": event["player_count"]
         }))
 
-    # HANDLER FOR group_send(type="game_started")
     async def game_started(self, event):
         await self.send(text_data=json.dumps({
             "type": "game_started"
         }))
+
 
