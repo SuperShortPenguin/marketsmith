@@ -74,7 +74,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "marketsmith.wsgi.application"
 
-ASGI_APPLICATION = "your_project.asgi.application"
+ASGI_APPLICATION = "marketsmith.asgi.application"
 
 
 CHANNEL_LAYERS = {
