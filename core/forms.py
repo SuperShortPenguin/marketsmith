@@ -23,8 +23,8 @@ class RegisterForm(UserCreationForm):
         user.email = self.cleaned_data['email']
         if commit:
             user.save()
-            Profile.objects.create(
-                user=user,
-                techhnex_id=self.cleaned_data['techhnex_id']
-            )
+            # Profile.objects.create(
+            #     user=user,
+            #     techhnex_id=self.cleaned_data['techhnex_id']
+            # )
         return user
