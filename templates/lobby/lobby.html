@@ -61,6 +61,15 @@
                 <button class="tab-link active" onclick="switchTab(event, 'leaderboard')">LEADERBOARD</button>
                 <button class="tab-link" onclick="switchTab(event, 'rules')">HOW TO PLAY</button>
                 <button class="tab-link" onclick="switchTab(event, 'profile')">PROFILE</button>
+
+                {% if not user.is_authenticated %}
+                    <a href="{% url 'login' %}" class="tab-link login-link">LOGIN</a>
+                {% else %}
+                    <form method="post" action="{% url 'logout' %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="tab-link">LOGOUT</button>
+                    </form>
+                {% endif %}
             </nav>
             <img src="{% static 'logo2.png' %}" alt="SNC" class="header-logo">
         </div>
