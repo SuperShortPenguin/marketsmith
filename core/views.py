@@ -67,8 +67,11 @@ def home(request):
 
     total_pnl = profile.total_pnl if profile else 0
 
+    leaderboard = Profile.objects.values('user__username', 'total_pnl').order_by('-total_pnl')[:50]
+
     return render(request, "lobby/lobby.html",{
-        "total_pnl": total_pnl
+        "total_pnl": total_pnl,
+        "leaderboard": leaderboard  # 2. Pass it to the template
     })
 
 
@@ -255,7 +258,8 @@ def game_interface(request, game_id):
         # Mark game finished ONLY ONCE
         if not game.is_finished:
             for p in game.players.all():
-                final_score = p.cash + (p.asset_count * true_asset_value)
+                # Subtracts the 3 initial assets so doing nothing equals 0
+                final_score = p.cash + ((p.asset_count - 3) * true_asset_value)
 
                 profile, _ = Profile.objects.get_or_create(user=p.user)
                 profile.total_pnl += final_score
