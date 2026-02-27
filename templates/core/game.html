@@ -1,182 +1,278 @@
+{% load static %}
 
-<h1>Round {{ game.current_round }}</h1>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Game Interface</title>
+    <link rel="stylesheet" href="{% static 'gameplay.css' %}">
+    <style>
+        /* === STRICT ISOLATED SEATING CSS === */
+        .poker-table {
+            position: relative; 
+        }
 
-<!-- Trade Log Popup Modal -->
-<!-- Trade Log Popup Modal -->
-<div id="tradeLogModal" style="display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); align-items: center; justify-content: center;">
-    <div style="background: #fff; color: #222; border-radius: 10px; padding: 32px 24px; min-width: 320px; max-width: 90vw; box-shadow: 0 8px 32px rgba(0,0,0,0.2); margin: auto;">
-        <h2 style="margin-top: 0;">Trade Log (Last Round)</h2>
+        .seat-wrapper {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: max-content;
+            min-width: 120px;
+            z-index: 100;
+        }
 
-        {% if trade_log and show_trade_log_popup %}
+        .seat-avatar {
+            width: 45px !important; 
+            height: 45px !important;
+            border-radius: 50% !important;
+            background-color: #4da6ff !important; 
+            box-shadow: 0 0 15px rgba(77, 166, 255, 0.6) !important;
+            border: 2px solid #ffffff !important;
+            margin-bottom: 8px !important; 
+            position: relative !important;
+            flex-shrink: 0 !important;
+        }
 
-            {% if trade_log|length > 0 %}
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px;">
-                    <thead>
-                        <tr>
-                            <th style="padding: 6px; border-bottom: 1px solid #ccc;">Buyer</th>
-                            <th style="padding: 6px; border-bottom: 1px solid #ccc;">Seller</th>
-                            <th style="padding: 6px; border-bottom: 1px solid #ccc;">Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for t in trade_log %}
-                            <tr>
-                                <td style="padding: 6px; border-bottom: 1px solid #eee;">
-                                    {{ t.buyer }}
-                                </td>
-                                <td style="padding: 6px; border-bottom: 1px solid #eee;">
-                                    {{ t.seller }}
-                                </td>
-                                <td style="padding: 6px; border-bottom: 1px solid #eee;">
-                                    ${{ t.price }}
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            {% else %}
-                <div style="font-size: 1.1em; color: #888; margin-bottom: 12px;">
-                    No trades executed
+        .seat-info {
+            text-align: center !important;
+            background: rgba(11, 5, 16, 0.95) !important; 
+            padding: 8px 12px !important;
+            border-radius: 8px !important;
+            white-space: nowrap !important;
+            border: 1px solid #3d2b56 !important;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5) !important;
+            position: relative !important;
+        }
+        
+        .seat-name { font-weight: bold !important; color: #ffffff !important; font-size: 0.9rem !important;}
+        .seat-stats { color: #fce34d !important; margin-top: 4px !important; font-size: 0.85rem !important; font-weight: bold !important;}
+
+        .seat-pos-1 { bottom: -15%; left: 50%; transform: translateX(-50%); } 
+        .seat-pos-2 { bottom: 10%; right: -5%; transform: translateX(50%); }  
+        .seat-pos-3 { top: 10%; right: -5%; transform: translateX(50%); }     
+        .seat-pos-4 { top: -15%; left: 50%; transform: translateX(-50%); }    
+        .seat-pos-5 { top: 10%; left: -5%; transform: translateX(-50%); }     
+        .seat-pos-6 { bottom: 10%; left: -5%; transform: translateX(-50%); }  
+
+        /* Answer Input Styling */
+        .answer-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #1a0f2e;
+            border: 1px solid #3d2b56;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .answer-container label {
+            color: #fce34d;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .answer-container input {
+            width: 60px;
+            text-align: center;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #4a3074;
+            background: #0b0510;
+            color: #fff;
+            font-size: 1rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    {% csrf_token %}
+
+    <div class="logo-center-container">
+        <img src="{% static 'logo.png' %}" alt="Logo 1" class="header-logo">
+    </div>
+    <div class="logo-center-container1">
+        <img src="{% static 'logo2.png' %}" alt="Logo 2" class="header-logo">
+    </div>
+    <div class="app-container">
+        
+        <div class="left-panel" style="display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+                <div class="question-container">
+                    <h2 id="question-text">
+                        Round {{ game.current_round }} Question:
+                    </h2>
                 </div>
-            {% endif %}
+                
+                <div class="table-area">
+                    <div class="poker-table">
+                        
+                        <div class="center-question">
+                            <h2>
+                                {% if question.text %}
+                                    {{ question.text }}
+                                {% else %}
+                                    {{ question }}
+                                {% endif %}
+                            </h2>
+                        </div>
 
-            <div style="text-align: right; color: #888; font-size: 0.95em;">
-                Continuing to next round...
+                        {% for p in players %}
+                        <div class="seat-wrapper
+                            {% if p.seat_number == 1 %}seat-pos-1{% endif %}
+                            {% if p.seat_number == 2 %}seat-pos-2{% endif %}
+                            {% if p.seat_number == 3 %}seat-pos-3{% endif %}
+                            {% if p.seat_number == 4 %}seat-pos-4{% endif %}
+                            {% if p.seat_number == 5 %}seat-pos-5{% endif %}
+                            {% if p.seat_number == 6 %}seat-pos-6{% endif %}
+                        ">
+                            <div class="seat-avatar"></div>
+                            <div class="seat-info">
+                                <div class="seat-name">{{ p.user.username }}</div>
+                                <div class="seat-stats">
+                                    ₹{{ p.cash }} | A: {{ p.asset_count }}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+
+                    </div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 40px; text-align: center; color: #aaa; font-size: 0.9rem; font-style: italic; padding-bottom: 20px;">
+                * <strong>A</strong> stands for Assets , RETURN ALL ANSWERS MODULO 10
+            </div>
+        </div>
+
+        <div class="right-panel">
+            {% if not show_trade_log_popup %}
+            <div class="trading-controls">
+                
+                <div class="answer-container">
+                    <label for="answer-input">Your Answer:</label>
+                    <input type="text" id="answer-input" placeholder="?">
+                </div>
+
+            {% else %}
+            <div class="trading-controls" style="opacity:0.5; pointer-events:none;">
+                <p style="text-align:center; color:#fce34d; font-weight:bold;">Trading Closed</p>
+            {% endif %}
+            
+                <input type="number" id="price-input" placeholder="Enter Quote Price">
+                <div class="action-buttons">
+                    <button class="btn buy-btn" onclick="executeTrade('Buy')">Buy</button>
+                    <button class="btn sell-btn" onclick="executeTrade('Sell')">Sell</button>
+                </div>
             </div>
 
-        {% endif %}
+            <div class="data-section">
+                <div class="section-header">Working Orders</div>
+                <div class="data-row header-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; text-align: center;">
+                    <span>Action</span>
+                    <span>Price</span>
+                    <span>Cancel</span>
+                </div>
+                <div class="data-content" id="working-orders-list"></div>
+            </div>
+
+            <div class="data-section">
+                <div class="section-header">Global Trade History</div>
+                <div class="data-row header-row" style="display: grid; grid-template-columns: 1fr 1.5fr 1.5fr 1fr; text-align: center;">
+                    <span>Round</span>
+                    <span>Buyer</span>
+                    <span>Seller</span>
+                    <span>Price</span>
+                </div>
+                <div class="data-content" id="global-trades-list"></div>
+            </div>
+        </div>
     </div>
-</div>
 
-<div style="margin-bottom: 24px;">
-    <h2 style="margin-bottom: 8px;">Scoreboard</h2>
-    <table style="width: 100%; border-collapse: collapse; background: #f8f9fa; border-radius: 8px; overflow: hidden;">
-        <thead style="background: #e9ecef;">
-            <tr>
-                <th style="padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;">Player</th>
-                <th style="padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;">Assets</th>
-                <th style="padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;">PnL</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for p in players %}
-            <tr {% if p.id == player.id %}style="background: #d1ecf1; font-weight: bold;"{% endif %}>
-                <td style="padding: 8px; border-bottom: 1px solid #dee2e6;">{{ p.user.username }} (Seat {{ p.seat_number }})</td>
-                <td style="padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;">{{ p.asset_count }}</td>
-                <td style="padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;">${{ p.cash }}</td>
-            </tr>
+    <span id="current-user-identity" style="display:none;">{{ request.user.username }}</span>
+    <span id="current-round-number" style="display:none;">{{ game.current_round }}</span>
+    
+    <span id="correct-math-answer" style="display:none;">{{ question.answer|default:"" }}</span>
+
+    {% if show_trade_log_popup %}
+    <div style="
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #120e1f;
+    padding: 20px 40px;
+    border-radius: 10px;
+    z-index: 9999;
+    border: 2px solid #3d2b56;
+    text-align:center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+    ">
+        <h3 style="color:#fce34d; margin-top: 0;">Round {{ game.current_round }} Trades</h3>
+        {% if trade_log %}
+            {% for trade in trade_log %}
+                <div style="padding: 8px 0; border-bottom: 1px solid #2a1f3d; font-size: 1.1rem;">
+                    <span style="color:#38a169; font-weight:bold;">{{ trade.buyer }}</span> 
+                    <span style="color:#fff;">bought from</span> 
+                    <span style="color:#e53e3e; font-weight:bold;">{{ trade.seller }}</span> 
+                    <span style="color:#fce34d;">@ ₹{{ trade.price }}</span>
+                </div>
             {% endfor %}
-        </tbody>
-    </table>
-</div>
+        {% else %}
+            <div style="color:#aaa; font-size: 1rem; padding: 10px 0; max-width: 350px;">
+                No trades were possible as the highest bid was less than the lowest ask (or there were no active quotes).
+            </div>
+        {% endif %}
+        <p style="color:#888; margin-top:20px; font-size: 0.95rem;">Next round starting...</p>
+    </div>
 
-<div id="timer" style="font-size: 24px; font-weight: bold; color: #d9534f; padding: 10px; background-color: #f5f5f5; border-radius: 5px; text-align: center; width: 100px; margin: 10px 0;">
-    <span id="timer-text">30</span>s
-</div>
+    <script>
+    const currentRoundTrades = {{ trade_log|default:"[]"|safe }};
+    const currentRoundNum = {{ game.current_round }};
+    const gameIdKey = "globalTrades_{{ game.id }}";
+    
+    let savedTrades = JSON.parse(localStorage.getItem(gameIdKey)) || {};
+    savedTrades[currentRoundNum] = currentRoundTrades;
+    localStorage.setItem(gameIdKey, JSON.stringify(savedTrades));
 
-<p><strong>Seat:</strong> {{ player.seat_number }}</p>
-<p><strong>Cash:</strong> ${{ player.cash }}</p>
-<p><strong>Assets:</strong> {{ player.asset_count }}</p>
+    setTimeout(() => {
+        location.reload();
+    }, 10000);
+    </script>
+    {% endif %}
 
-<hr>
+    <script>
+        window.currentGameId = "{{ game.id }}";
+    </script>
 
-<h2>Question</h2>
-<p>{{ question}}</p>
+    <script src="{% static 'gameplay.js' %}"></script>
 
-<hr>
+    {% if round_start_time and round_end_time %}
+    <script>
+        const startTime = new Date("{{ round_start_time|date:'c' }}").getTime();
+        const nowTime = new Date("{{ current_server_time|date:'c' }}").getTime();
+        const duration = Number("{{ round_end_time }}") * 1000;
 
-<h2>Trade</h2>
+        let remaining = duration - (nowTime - startTime);
 
-<input type="number" id="price" placeholder="Enter price" />
+        const timerDiv = document.createElement("div");
+        timerDiv.style.marginTop = "10px";
+        timerDiv.style.fontSize = "18px";
+        timerDiv.style.color = "#ffd700";
+        document.querySelector(".question-container").appendChild(timerDiv);
 
-<button onclick="placeOrder('BID')">Buy 1 Asset</button>
-<button onclick="placeOrder('ASK')">Sell 1 Asset</button>
+        const interval = setInterval(() => {
+            if (remaining <= 0) {
+                clearInterval(interval);
+                location.reload();
+                return;
+            }
 
-<p id="status"></p>
-
-<script>
-// Trade Log Modal Logic
-{% if show_trade_log_popup %}
-    document.addEventListener('DOMContentLoaded', function() {
-        var modal = document.getElementById('tradeLogModal');
-        if (modal) {
-            modal.style.display = 'flex';
-            setTimeout(function() {
-                modal.style.display = 'none';
-                window.location.reload();
-            }, 10000); // 10 seconds
-        }
-    });
-{% endif %}
-{% if not show_trade_log_popup %}
-
-// Timer functionality based on server time
-const roundStartTime = new Date('{{ round_start_time|date:"c" }}');
-const serverCurrentTime = new Date('{{ current_server_time|date:"c" }}');
-const roundDuration = {{ round_end_time }} * 1000;
-
-if (!isNaN(roundStartTime.getTime())) {
-
-    const roundEndTime = new Date(roundStartTime.getTime() + roundDuration);
-    const timerDisplay = document.getElementById('timer-text');
-    let refreshScheduled = false;
-
-    function updateTimer() {
-        const clientNow = new Date();
-        const elapsedSincePageLoad = clientNow - serverCurrentTime;
-        const adjustedNow = new Date(serverCurrentTime.getTime() + elapsedSincePageLoad);
-
-        const timeRemaining = Math.max(0, roundEndTime - adjustedNow);
-        const secondsRemaining = Math.ceil(timeRemaining / 1000);
-
-        timerDisplay.innerText = Math.max(0, secondsRemaining);
-
-        if (secondsRemaining <= 5) {
-            document.getElementById('timer').style.color = '#d9534f';
-        }
-
-        if (secondsRemaining <= 0 && !refreshScheduled) {
-            refreshScheduled = true;
-            clearInterval(timerInterval);
-            location.reload();
-        }
-    }
-
-    const timerInterval = setInterval(updateTimer, 100);
-    updateTimer();
-}
-
-{% else %}
-
-// LOG PHASE → hide timer completely
-document.getElementById('timer').style.display = 'none';
-
-{% endif %}
-
-
-function placeOrder(type) {
-    const price = document.getElementById("price").value;
-
-    if (!price) {
-        alert("Enter a price");
-        return;
-    }
-
-    fetch("{% url 'api_order' %}", {
-        method: "POST",
-        headers: {
-            "X-CSRFToken": "{{ csrf_token }}",
-            "Content-Type": "application/x-www-form-urlencoded"
-        },
-        body: new URLSearchParams({
-            game_id: "{{ game.id }}",
-            price: price,
-            type: type
-        })
-    })
-    .then(res => res.json())
-    .then(data => {
-        document.getElementById("status").innerText = data.message;
-    });
-}
-</script>
+            timerDiv.innerText = "Time Left: " + Math.floor(remaining / 1000) + "s";
+            remaining -= 1000;
+        }, 1000);
+    </script>
+    {% endif %}
+</body>
+</html>
