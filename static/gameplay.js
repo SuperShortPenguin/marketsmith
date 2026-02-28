@@ -1,25 +1,18 @@
-document.addEventListener('DOMContentLoaded', () => {
-    // Basic init
-});
 
 /**
- * Robust helper to get Django CSRF Token from cookies or DOM
+ * Helper to get Django CSRF Token from cookies
  */
-function getCsrfToken() {
+function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
         const cookies = document.cookie.split(';');
         for (let i = 0; i < cookies.length; i++) {
             const cookie = cookies[i].trim();
-            if (cookie.substring(0, 10) === ('csrftoken=')) {
-                cookieValue = decodeURIComponent(cookie.substring(10));
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
                 break;
             }
         }
-    }
-    if (!cookieValue) {
-        const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
-        if (csrfInput) cookieValue = csrfInput.value;
     }
     return cookieValue;
 }
@@ -28,48 +21,17 @@ function getCsrfToken() {
  * Connects to the backend API to place an order
  */
 async function executeTrade(action) {
-    const answerInput = document.getElementById('answer-input').value.trim();
-    const priceInput = document.getElementById('price-input').value;
-    
-    // 1. TRUE ANSWER VALIDATION
-    const expectedAnswerSpan = document.getElementById("correct-math-answer");
-    const expectedAnswer = expectedAnswerSpan ? expectedAnswerSpan.textContent.trim().toLowerCase() : "";
+    const priceInput = document.getElementById('price-input');
+    const price = priceInput.value;
 
-    // If the backend provided an answer, check it strictly
-    if (expectedAnswer && expectedAnswer !== "none" && expectedAnswer !== "waiting...") {
-        const providedStr = answerInput.toLowerCase();
-        
-        // Checks if they match as strict text OR as numbers (so 45.0 == 45)
-        const isNumericMatch = !isNaN(expectedAnswer) && !isNaN(providedStr) && Number(expectedAnswer) === Number(providedStr);
-        
-        // Helpful debugging tool in your browser console (F12)
-        console.log("Expected Math Answer:", expectedAnswer, "| You Typed:", providedStr);
-        
-        if (expectedAnswer !== providedStr && !isNumericMatch) {
-            alert("Wrong answer! Try again.");
-            return; // Stops the trade immediately
-        }
-    } else if (!answerInput) {
-        // Fallback if no specific answer was passed but they left it blank
-        alert("Please enter your answer before trading.");
-        return;
-    }
-
-    // 2. Price Validation
-    if (!priceInput || priceInput <= 0) {
-        alert("Enter a valid quote price greater than 0.");
-        return;
-    }
-
-    const csrfToken = getCsrfToken();
-    if (!csrfToken) {
-        alert("Security Token Missing! Please refresh the page.");
+    if (!price || price <= 0) {
+        alert("Enter valid price");
         return;
     }
 
     const orderData = new URLSearchParams({
         'type': action === 'Buy' ? 'BID' : 'ASK',
-        'price': parseInt(priceInput),
+        'price': parseInt(price),
         'game_id': window.currentGameId
     });
 
@@ -78,7 +40,7 @@ async function executeTrade(action) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRFToken': csrfToken
+                'X-CSRFToken': getCookie('csrftoken')
             },
             body: orderData
         });
@@ -86,97 +48,80 @@ async function executeTrade(action) {
         const result = await response.json();
 
         if (result.status === 'queued') {
-            addOrderToUI(action, priceInput);
-            document.getElementById('price-input').value = '';
-            document.getElementById('answer-input').value = ''; // clear answer on success
+            addOrderToUI(action, price);
+            priceInput.value = '';
         } else {
-            let msg = result.message || "Failed to place order.";
-            
-            // Intercept and change backend message
-            if (msg.includes("Only ONE")) {
-                if (action === 'Buy') {
-                    msg = "Some user already made a bid for this round.";
-                } else {
-                    msg = "Some user already sold for this round.";
-                }
-            }
-            alert(msg);
+            alert(result.message);
         }
 
     } catch (error) {
         console.error('Error placing order:', error);
-        alert("Connection error. Make sure your server is running.");
+        alert("Connection lost.");
     }
 }
 
 /**
- * Internal UI helper to render the Working Orders row
+ * Internal UI helper to render the row
  */
 function addOrderToUI(action, price) {
     const actionColor = action === 'Buy' ? '#38a169' : '#e53e3e';
     const ordersList = document.getElementById('working-orders-list');
     
-    if (!ordersList) return;
-    
     const orderRow = document.createElement('div');
     orderRow.className = 'data-row order-item';
-    orderRow.style.display = "grid";
-    orderRow.style.gridTemplateColumns = "1fr 1fr 1fr";
-    orderRow.style.textAlign = "center";
-    orderRow.style.padding = "8px 0";
-    orderRow.style.borderBottom = "1px solid #3d2b56";
     
     orderRow.innerHTML = `
-        <span style="color: ${actionColor}; font-weight: bold;">${action.toUpperCase()}</span>
-        <span>₹${price}</span>
+        <span style="color: ${actionColor}; font-weight: bold;">${action}</span>
+        <span>$${price}</span>
         <span style="cursor: pointer; color: #a0aec0;" onclick="this.parentElement.remove()">✕</span>
     `;
 
     ordersList.appendChild(orderRow);
 }
 
-/**
- * Populate Global Trades Table from LocalStorage
- */
-document.addEventListener("DOMContentLoaded", () => {
-    const globalTradeContainer = document.getElementById("global-trades-list");
-    if (!globalTradeContainer) return;
+// document.addEventListener("DOMContentLoaded", () => {
+//     const tradeContainer = document.getElementById("trades-list");
+//     const tradeDataElement = document.getElementById("trade-data");
 
-    const gameIdKey = "globalTrades_" + window.currentGameId;
-    const savedTrades = JSON.parse(localStorage.getItem(gameIdKey)) || {};
-    
-    globalTradeContainer.innerHTML = "";
-    let hasAnyTrades = false;
+//     if (!tradeContainer || !tradeDataElement) return;
 
-    for (let r = 1; r <= 6; r++) {
-        if (savedTrades[r] && savedTrades[r].length > 0) {
-            hasAnyTrades = true;
-            
-            savedTrades[r].forEach(trade => {
-                const row = document.createElement("div");
-                row.className = "data-row";
-                row.style.display = "grid";
-                row.style.gridTemplateColumns = "1fr 1.5fr 1.5fr 1fr";
-                row.style.textAlign = "center";
-                row.style.borderBottom = "1px solid #3d2b56";
-                row.style.padding = "8px 0";
+//     let allTrades = [];
+//     try {
+//         // This reads the trade_log already being sent by your views.py
+//         allTrades = JSON.parse(tradeDataElement.textContent);
+//     } catch (err) {
+//         allTrades = [];
+//     }
 
-                row.innerHTML = `
-                    <span style="color:#aaa;">R${r}</span>
-                    <span style="color:#38a169; font-weight:bold;">${trade.buyer}</span>
-                    <span style="color:#e53e3e; font-weight:bold;">${trade.seller}</span>
-                    <span style="color:#fce34d;">₹${trade.price}</span>
-                `;
-                globalTradeContainer.appendChild(row);
-            });
-        }
-    }
+//     tradeContainer.innerHTML = "";
 
-    if (!hasAnyTrades) {
-        globalTradeContainer.innerHTML = `
-            <div class="data-row" style="display:block; text-align:center; padding: 15px; color: #888;">
-                No trades have occurred globally yet.
-            </div>
-        `;
-    }
-});
+//     // 1. Filter trades where the current user's name appears as buyer or seller
+//     const myTrades = allTrades.filter(t => 
+//         t.buyer === window.currentUserName || t.seller === window.currentUserName
+//     );
+
+//     // 2. Handle Case: No trades found
+//     if (myTrades.length === 0) {
+//         tradeContainer.innerHTML = '<div class="data-row"><span>-</span><span>-</span><span>-</span></div>';
+//         return;
+//     }
+
+//     // 3. Handle Case: Trades found
+//     myTrades.forEach(trade => {
+//         const row = document.createElement("div");
+//         row.className = "data-row";
+
+//         // Logic: Compare strings to find the partner and the action
+//         const isBuyer = trade.buyer === window.currentUserName;
+//         const partner = isBuyer ? trade.seller : trade.buyer;
+//         const action = isBuyer ? "Buy" : "Sell";
+//         const color = isBuyer ? "#38a169" : "#e53e3e";
+
+//         row.innerHTML = `
+//             <span>${partner}</span>
+//             <span>${trade.price}</span>
+//             <span style="color: ${color}; font-weight: bold;">${action}</span>
+//         `;
+//         tradeContainer.appendChild(row);
+//     });
+// });

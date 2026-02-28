@@ -287,13 +287,14 @@ def game_interface(request, game_id):
             game.round_start_time = timezone.now()
 
             # 🔴 Clear previous trade log
-            game.last_trade_log = []
+            # game.last_trade_log = []                  // ADDED
             game.save()
 
             return redirect("game_interface", game_id=game.id)
 
         # 🔴 Fetch trade log from JSONField
-        trade_log = game.last_trade_log
+        # trade_log = game.last_trade_log 
+        trade_log = game.last_trade_log or []       # ADDED
 
         players = game.players.select_related('user').order_by('seat_number')
 
@@ -347,6 +348,7 @@ def game_interface(request, game_id):
             ]
 
             round_trades = []  # 🔴 This will go into last_trade_log
+            full_trade_history = game.last_trade_log or []          # ADDED
 
             if orders_data:
                 df = pd.DataFrame(orders_data)
@@ -378,13 +380,15 @@ def game_interface(request, game_id):
 
                             # 🔴 STORE TRADE IN JSON FIELD
                             round_trades.append({
+                                "round": game.current_round,        # ADDED
                                 "buyer": buyer.user.username,
                                 "seller": seller.user.username,
                                 "price": price
                             })
 
             # 🔴 Save trade log to GameSession
-            game.last_trade_log = round_trades
+            full_trade_history.extend(round_trades)         # ADDED
+            game.last_trade_log = full_trade_history
             orders_qs.update(is_active=False)
 
             game.round_phase = "log"
@@ -411,7 +415,8 @@ def game_interface(request, game_id):
             'current_server_time': timezone.now(),
             'round_end_time': 30,
             'show_trade_log_popup': False,
-            'trade_log': trade_log,
+            # 'trade_log': trade_log,
+            'trade_log': game.last_trade_log or [],     # ADDED
         })
 
 
