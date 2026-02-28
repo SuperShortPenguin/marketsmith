@@ -1,20 +1,24 @@
 # core/views.py
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.db import transaction
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.db.models import Count
 from .models import GameSession, Player, Order, Transaction
 from channels.layers import get_channel_layer
+from django.views.decorators.csrf import csrf_exempt
 from asgiref.sync import async_to_sync
 from django.shortcuts import get_object_or_404, redirect
 from core.models import Profile
 import pandas as pd
 from django.contrib.auth.models import User
+from django.conf import settings
 
-
+@csrf_exempt
+def cron_ping(request):
+    return HttpResponse({"status": "ok"})
 
 @login_required
 def cleanup_game(request, game_id):
